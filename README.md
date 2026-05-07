@@ -16,4 +16,4 @@ This repository is for developing vehicle dynamics models for MLTS.
 - Nonlinear tyre saturation
 - 4-wheel model
 - Validation with measurement data
-- CasADi-compatible model for optimization
+
