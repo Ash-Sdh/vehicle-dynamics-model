@@ -1,7 +1,5 @@
 import numpy as np
 
-#Firstly, I write the model as it is, then rewrite it in a suitable way for CasADI
-
 def two_wheel_physics(state, control, params):
     """
     state = [vy, r] - list: lateral velocity (m/s) and yaw rate (rad/s) 
@@ -22,7 +20,7 @@ def two_wheel_physics(state, control, params):
     alpha_f = delta - (vy + lf * r) / vx
     alpha_r = (vy - lr * r) / vx                    #Gemini says there should be a minus in front, idk
 
-    # Linear tyre model
+    # Linear tyre model for lateral forces
     Fyf = Cf * alpha_f
     Fyr = Cr * alpha_r
 
@@ -33,7 +31,7 @@ def two_wheel_physics(state, control, params):
     return np.array([dvy, dr])
 
 
-# Example Vehicle Setup
+# Simple Euler Integrator to see what is happening
 car_params = {
     'm': 250.0,    'Iz': 150.0, 
     'lf': 0.8,     'lr': 0.7, 
@@ -45,10 +43,9 @@ state = np.array([0.0, 0.0])
 control = np.array([np.radians(2)])
 dt = 0.01
 
-# Simple Euler Integration
 for step in range(100):
-    x_dot = two_wheel_physics(state, control, car_params)
-    x =+ + x_dot * dt
+    new_state = two_wheel_physics(state, control, car_params)
+    state =+ + new_state * dt
     
     if step % 20 == 0:
-        print(f"Time {step*dt:.2f}s | Yaw Rate: {x[1]:.3f} rad/s")
+        print(f"Time {step*dt:.2f}s | Yaw Rate: {state[1]:.3f} rad/s")
