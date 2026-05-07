@@ -41,15 +41,14 @@ car_params = {
     'vx': 15.0  # 54 km/h
 }
 
-# Initial conditions [vy, r]
-x = np.array([0.0, 0.0])
-u = np.array([np.radians(2)]) # 2 degrees steering
+state = np.array([0.0, 0.0])
+control = np.array([np.radians(2)])
 dt = 0.01
 
-# Simple Euler Integration (for clarity)
+# Simple Euler Integration
 for step in range(100):
-    x_dot = bicycle_model_dynamics(x, u, car_params)
-    x = x + x_dot * dt
+    x_dot = two_wheel_physics(state, control, car_params)
+    x =+ + x_dot * dt
     
     if step % 20 == 0:
         print(f"Time {step*dt:.2f}s | Yaw Rate: {x[1]:.3f} rad/s")
