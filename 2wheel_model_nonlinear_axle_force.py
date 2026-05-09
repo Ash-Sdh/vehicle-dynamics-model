@@ -2,112 +2,104 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def pacejka_lateral_force(alpha, B, C, D, E):
+def pacejka_lateral(alpha, B, C, D, E):
     """
-    Simplified Pacejka Magic Formula for lateral force.
+    Simplified Pacejka Magic Formula for lateral force for non-linear axle characteristics.
 
-    alpha = slip angle [rad]
-    B = stiffness factor
-    C = shape factor
-    D = peak force [N]
-    E = curvature factor
+    alpha = slip angle (rad)
+    B = stiffness factor (???)
+    C = shape factor (???)
+    D = peak force (N)
+    E = curvature factor (???)
     """
     return D * np.sin(C * np.arctan(B * alpha - E * (B * alpha - np.arctan(B * alpha))))
 
 
-def nonlinear_bicycle_model(state, control, params):
+def nonlinear_twowheel(state, control, params):
     """
-    Nonlinear 2-wheel / bicycle model.
+    Non-linear kinematics for the dynamic 2-wheel model. Longitudinal speed still held constant.
+    ??? Do we choose to use m/s or km/h? Same question with rad vs. deg. ???
 
+    Inputs:
+    ------------------------------
     state = [X, Y, psi, vy, r]
+
+    X, Y: global position
+    psi: yaw angle (rad)
+    vy: lateral velocity (m/s)
+    r: yaw rate (rad/s)
+    -------------------------------
     control = [delta]
 
-    X, Y = global position
-    psi = yaw angle
-    vy = lateral velocity
-    r = yaw rate
+    delta: steering angle (rad ???)
+    -------------------------------
+    params = {???}
+
+    m: mass (kg)
+    Iz: yaw inertia (kg/m^2)
+    lf, lr: front and rear distances from cog - centre of gravity (m)
+    vx: longitudinal velocity (m/s)
+    g: acceletion at Earth surface - can we not just hardcode this? xd
+    mu: friction coefficient (w/o unit)
+    delta_max:  steering limit (rad)
+    Bf, Br: front and rear tyre stiffness factor (???)
+    Cf, Cr: front and rear tyre shape factor (???)
+    Ef, Er: front and rear tyre curvature factor (???)
+    ------------------------------
     """
 
-    # -------------------------
-    # Unpack state
-    # -------------------------
-    X, Y, psi, vy, r = state
+    X, Y, psi, vy, r = state  #VS says X and Y not accessed ??
 
-    # -------------------------
-    # Unpack control
-    # -------------------------
     delta = control[0]
 
-    # -------------------------
-    # Unpack parameters
-    # -------------------------
     m = params["m"]
     Iz = params["Iz"]
     lf = params["lf"]
     lr = params["lr"]
     vx = params["vx"]
+    vx_safe = max(vx, 0.1)
     g = params["g"]
-
     mu = params["mu"]
     delta_max = params["delta_max"]
-
     Bf = params["Bf"]
-    Cf_shape = params["Cf_shape"]
-    Ef = params["Ef"]
-
     Br = params["Br"]
-    Cr_shape = params["Cr_shape"]
+    Cf = params["Cf"]    
+    Cr = params["Cr"]
+    Ef = params["Ef"]
     Er = params["Er"]
 
-    # -------------------------
+
     # Steering limit
-    # -------------------------
     delta = np.clip(delta, -delta_max, delta_max)
 
-    # Avoid division by zero
-    vx_safe = max(vx, 0.1)
-
-    # -------------------------
     # Static axle normal loads
-    # -------------------------
     wheelbase = lf + lr
-
     Fzf = m * g * lr / wheelbase
     Fzr = m * g * lf / wheelbase
 
-    # Peak lateral force values
+    # Peak lateral forces
     Df = mu * Fzf
     Dr = mu * Fzr
 
-    # -------------------------
-    # Nonlinear slip angles
-    # -------------------------
+    # Slip angles
     alpha_f = delta - np.arctan((vy + lf * r) / vx_safe)
     alpha_r = -np.arctan((vy - lr * r) / vx_safe)
 
-    # -------------------------
-    # Nonlinear axle lateral forces
-    # -------------------------
-    Fyf = pacejka_lateral_force(alpha_f, Bf, Cf_shape, Df, Ef)
-    Fyr = pacejka_lateral_force(alpha_r, Br, Cr_shape, Dr, Er)
+    # Lateral axel forces
+    Fyf = pacejka_lateral(alpha_f, Bf, Cf, Df, Ef)
+    Fyr = pacejka_lateral(alpha_r, Br, Cr, Dr, Er)
 
-    # -------------------------
-    # Dynamic equations
-    # -------------------------
+    # ODEs
     dvy = (Fyf * np.cos(delta) + Fyr) / m - vx * r
     dr = (lf * Fyf * np.cos(delta) - lr * Fyr) / Iz
 
-    # -------------------------
-    # Position / kinematics
-    # -------------------------
+    # Position update
     dpsi = r
 
     dX = vx * np.cos(psi) - vy * np.sin(psi)
     dY = vx * np.sin(psi) + vy * np.cos(psi)
 
-    # -------------------------
-    # Useful outputs
-    # -------------------------
+    # Outputs
     beta = np.arctan2(vy, vx_safe)
     ay = dvy + vx * r
 
@@ -127,10 +119,8 @@ def nonlinear_bicycle_model(state, control, params):
 
     return state_dot, outputs
 
-
-# -------------------------
-# Vehicle parameters
-# -------------------------
+#-----------------------------------
+# Example run (from ChatGPT)
 params = {
     "m": 250.0,                     # vehicle mass [kg]
     "Iz": 150.0,                    # yaw moment of inertia [kg m^2]
@@ -209,7 +199,7 @@ for t in time:
     delta = steering_input(t)
     control = np.array([delta])
 
-    state_dot, outputs = nonlinear_bicycle_model(state, control, params)
+    state_dot, outputs = nonlinear_twowheel(state, control, params)
 
     # Euler integration
     state = state + state_dot * dt
@@ -238,48 +228,48 @@ for key in history:
 # -------------------------
 plt.figure()
 plt.plot(history["X"], history["Y"])
-plt.xlabel("X position [m]")
-plt.ylabel("Y position [m]")
+plt.xlabel("X position (m)")
+plt.ylabel("Y position (m)")
 plt.title("Vehicle path")
 plt.axis("equal")
 plt.grid(True)
 
 plt.figure()
 plt.plot(history["time"], np.degrees(history["delta"]))
-plt.xlabel("Time [s]")
-plt.ylabel("Steering angle δ [deg]")
+plt.xlabel("Time (s)")
+plt.ylabel("Steering angle δ (deg)")
 plt.title("Steering input")
 plt.grid(True)
 
 plt.figure()
 plt.plot(history["time"], history["r"])
-plt.xlabel("Time [s]")
-plt.ylabel("Yaw rate r [rad/s]")
+plt.xlabel("Time (s)")
+plt.ylabel("Yaw rate r (rad/s)")
 plt.title("Yaw rate")
 plt.grid(True)
 
 plt.figure()
-plt.plot(history["time"], np.degrees(history["alpha_f"]), label="front slip angle αf")
-plt.plot(history["time"], np.degrees(history["alpha_r"]), label="rear slip angle αr")
-plt.xlabel("Time [s]")
-plt.ylabel("Slip angle [deg]")
+plt.plot(history["time"], np.degrees(history["alpha_f"]), label="front slip angle α_f")
+plt.plot(history["time"], np.degrees(history["alpha_r"]), label="rear slip angle α_r")
+plt.xlabel("Time (s)")
+plt.ylabel("Slip angle (deg)")
 plt.title("Slip angles")
 plt.legend()
 plt.grid(True)
 
 plt.figure()
-plt.plot(history["time"], history["Fyf"], label="front lateral force Fyf")
-plt.plot(history["time"], history["Fyr"], label="rear lateral force Fyr")
-plt.xlabel("Time [s]")
-plt.ylabel("Lateral force [N]")
+plt.plot(history["time"], history["Fyf"], label="front lateral force Fy_f")
+plt.plot(history["time"], history["Fyr"], label="rear lateral force Fy_r")
+plt.xlabel("Time (s)")
+plt.ylabel("Lateral force (N)")
 plt.title("Axle lateral forces")
 plt.legend()
 plt.grid(True)
 
 plt.figure()
 plt.plot(history["time"], history["ay"])
-plt.xlabel("Time [s]")
-plt.ylabel("Lateral acceleration ay [m/s²]")
+plt.xlabel("Time (s)")
+plt.ylabel("Lateral acceleration a_y (m/s²)")
 plt.title("Lateral acceleration")
 plt.grid(True)
 
